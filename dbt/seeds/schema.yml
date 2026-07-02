@@ -15,7 +15,7 @@ seeds:
         sort_order: int
     columns:
       - name: age_band_code
-        tests: [unique, not_null]
+        data_tests: [unique, not_null]
 
   - name: seed_lga_name_overrides
     description: >
@@ -29,6 +29,6 @@ seeds:
         note: text
     columns:
       - name: source_lga_name
-        tests: [unique, not_null]
+        data_tests: [unique, not_null]
       - name: lga_code
-        tests: [not_null]
+        data_tests: [not_null]

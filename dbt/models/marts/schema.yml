@@ -1,0 +1,255 @@
+version: 2
+
+models:
+  # ---------------------------------------------------------------- dimensions
+  - name: dim_region
+    description: >
+      Conformed region dimension at Local Government Area grain, shared by all
+      fact tables. Built from an SCD Type 2 dbt snapshot of the ABS LGA
+      codelist: each LGA can carry multiple versions with [valid_from,
+      valid_to) ranges. Included to demonstrate the SCD2 pattern — within the
+      current data window the codelist is stable, so each LGA has one version.
+      Contains an explicit Unknown member (lga_code = 'UNK') so facts never
+      carry NULL region keys.
+    columns:
+      - name: region_key
+        description: Surrogate key (hash of lga_code + version validity start).
+        data_tests: [unique, not_null]
+      - name: lga_code
+        description: ABS LGA 2024 code ('UNK' for the unknown member).
+        data_tests: [not_null]
+      - name: lga_name
+        description: Official LGA name, state suffix stripped.
+        data_tests: [not_null]
+      - name: is_incorporated
+        description: False for ABS special categories (Unincorporated SA etc.) and the Unknown member.
+      - name: valid_from
+        data_tests: [not_null]
+      - name: valid_to
+        data_tests: [not_null]
+      - name: is_current
+        data_tests: [not_null]
+
+  - name: dim_date
+    description: >
+      Conformed date dimension, day grain, 2015 through 2026, generated with
+      dbt_utils.date_spine. financial_year follows the Australian July-June
+      convention (FY2021 = 2020-07-01..2021-06-30).
+    columns:
+      - name: date_day
+        description: Natural primary key.
+        data_tests: [unique, not_null]
+      - name: year
+        data_tests: [not_null]
+      - name: is_weekend
+        data_tests: [not_null]
+    data_tests:
+      # Guard against the spine end date silently falling behind new fact data.
+      - dbt_expectations.expect_column_max_to_be_between:
+          arguments:
+            column_name: date_day
+            min_value: "'2026-12-31'::date"
+
+  - name: dim_age_band
+    description: >
+      Conformed age-band dimension (ABS CL_AGE 5-year bands). Used natively by
+      fact_population_annual and via age bucketing by fact_crash_casualties,
+      so per-age-group casualty rates divide cleanly by population.
+    columns:
+      - name: age_band_code
+        data_tests: [unique, not_null]
+      - name: age_band
+        data_tests: [unique, not_null]
+
+  - name: dim_crash_condition
+    description: >
+      Junk dimension bundling the low-cardinality descriptive attributes of a
+      crash (type, weather, moisture, light, drug/alcohol involvement). The
+      key is a deterministic hash of the attribute values, recomputed
+      identically in the fact table.
+    columns:
+      - name: condition_key
+        data_tests: [unique, not_null]
+      - name: is_dui_involved
+        data_tests: [not_null]
+      - name: is_drugs_involved
+        data_tests: [not_null]
+
+  # --------------------------------------------------------------------- facts
+  - name: fact_road_crashes
+    description: >
+      Grain: one row per reported crash in South Australia, 2020-2024 (latest
+      rolling 5-year extract). Measures are the source's published counts of
+      units, casualties, fatalities and injuries per crash.
+    columns:
+      - name: report_id
+        description: Degenerate dimension — the crash report business key.
+        data_tests: [unique, not_null]
+      - name: region_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_region')
+                field: region_key
+      - name: crash_date
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: condition_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_crash_condition')
+                field: condition_key
+      - name: severity_code
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+                quote: false
+      - name: severity_label
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [PDO, MI, SI, Fatal]
+      - name: stats_area
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['1 City', '2 Metropolitan', '3 Country']
+      - name: total_casualties
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 100
+    data_tests:
+      # The extract always holds five full years of crashes; a big deviation
+      # means a broken ingest or a changed portal layout, not real data.
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          arguments:
+            min_value: 40000
+            max_value: 200000
+
+  - name: fact_crash_casualties
+    description: >
+      Grain: one row per person injured in a crash. Region and date inherit
+      from the parent crash; exact ages are bucketed into ABS age bands so
+      casualty rates per age group are divisible by matching population.
+    columns:
+      - name: region_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_region')
+                field: region_key
+      - name: crash_date
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: age_band_code
+        description: NULL when the source masked the casualty's age.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_age_band')
+                field: age_band_code
+      - name: sex
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Male, Female, Unknown]
+      - name: age
+        data_tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 120
+                row_condition: "age is not null"
+      - name: casualty_count
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1]
+                quote: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [report_id, unit_number, casualty_number]
+
+  - name: fact_population_annual
+    description: >
+      Grain: LGA x year x sex x age band (periodic snapshot fact). Stores only
+      the additive base cells — Male/Female and real age bands — because the
+      published totals are exactly derivable (verified against source) and
+      storing both invites double counting. year_date anchors the year to
+      1 January purely to join dim_date at day grain.
+    columns:
+      - name: region_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_region')
+                field: region_key
+      - name: year_date
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: sex
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [Male, Female]
+      - name: age_band_code
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_age_band')
+                field: age_band_code
+      - name: population
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 50000
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [region_key, year, sex, age_band_code]
+
+  # ------------------------------------------------------------------- reports
+  - name: rpt_lga_crash_rates
+    description: >
+      Analysis-ready view: crashes, casualties and fatalities per 10,000
+      residents by LGA and year — the conformed-dimension payoff query.
+      Caveat for interpretation: the denominator is RESIDENT population, so
+      commuter-heavy LGAs (Adelaide CBD) show inflated per-capita rates.
+    columns:
+      - name: crashes_per_10k
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 500
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [lga_code, year]

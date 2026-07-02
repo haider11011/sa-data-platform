@@ -9,10 +9,17 @@ models:
       names — fact rows are never silently dropped.
     columns:
       - name: source_lga_name
-        tests: [unique, not_null]
+        data_tests: [unique, not_null]
       - name: lga_code
-        tests:
+        data_tests:
           - not_null
           - relationships:
-              to: ref('stg_abs__lga_codelist')
-              field: lga_code
+              arguments:
+                to: ref('stg_abs__lga_codelist')
+                field: lga_code
+      - name: match_method
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [seed_override, exact_name, name_without_conjunction]

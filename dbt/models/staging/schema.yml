@@ -8,61 +8,68 @@ models:
     columns:
       - name: report_id
         description: Stable crash identifier (year-sequence, extract-date suffix stripped).
-        tests: [unique, not_null]
+        data_tests: [unique, not_null]
       - name: crash_date
-        tests: [not_null]
+        data_tests: [not_null]
       - name: severity_code
         description: CSEF severity, 1 (property damage only) to 4 (fatal).
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
-              values: [1, 2, 3, 4]
-              quote: false
+              arguments:
+                values: [1, 2, 3, 4]
+                quote: false
 
   - name: stg_data_sa__casualties
     description: One row per person injured in a crash (same extract as crashes).
     columns:
       - name: report_id
-        tests:
+        data_tests:
           - not_null
           - relationships:
-              to: ref('stg_data_sa__crashes')
-              field: report_id
-    tests:
+              arguments:
+                to: ref('stg_data_sa__crashes')
+                field: report_id
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [report_id, unit_number, casualty_number]
+          arguments:
+            combination_of_columns: [report_id, unit_number, casualty_number]
 
   - name: stg_data_sa__units
     description: One row per unit (vehicle/pedestrian/cyclist) involved in a crash.
     columns:
       - name: report_id
-        tests:
+        data_tests:
           - not_null
           - relationships:
-              to: ref('stg_data_sa__crashes')
-              field: report_id
-    tests:
+              arguments:
+                to: ref('stg_data_sa__crashes')
+                field: report_id
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [report_id, unit_number]
+          arguments:
+            combination_of_columns: [report_id, unit_number]
 
   - name: stg_abs__erp_lga
     description: ABS Estimated Resident Population, SA LGAs only, annual 2015+.
     columns:
       - name: population
-        tests: [not_null]
+        data_tests: [not_null]
       - name: sex
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
-              values: [Male, Female, Persons]
-    tests:
+              arguments:
+                values: [Male, Female, Persons]
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [lga_code, year, sex, age_band_code]
+          arguments:
+            combination_of_columns: [lga_code, year, sex, age_band_code]
 
   - name: stg_abs__lga_codelist
     description: ABS LGA_2024 codelist filtered to SA — authoritative code/name pairs.
     columns:
       - name: lga_code
-        tests: [unique, not_null]
+        data_tests: [unique, not_null]
       - name: lga_name
-        tests: [unique, not_null]
+        data_tests: [unique, not_null]
