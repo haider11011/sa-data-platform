@@ -1,0 +1,8 @@
+source_lga_name,lga_code,note
+PT.PIRIE CITY & DIST. COUNCIL,46450,Port Pirie City and Districts — abbreviation pattern too irregular for the rule chain
+DC WUDINNA. (DC LE HUNTE.),48640,DC Le Hunte was renamed Wudinna DC (2008); crash data carries both names
+DC MALLALA.,40150,DC Mallala was renamed Adelaide Plains Council (2017); ABS codelist only has the new name
+DC FRANKLIN HARBOR.,41960,Source uses US spelling Harbor; ABS uses Franklin Harbour
+DC NARACOORTE & LUCINDALE.,45090,ABS drops the conjunction: Naracoorte Lucindale
+UNINCORP (EASTERN),49399,Maps to the ABS Unincorporated SA region
+METRO UNINCORPORATED,49399,Maps to the ABS Unincorporated SA region

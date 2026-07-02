@@ -1,0 +1,34 @@
+version: 2
+
+seeds:
+  - name: seed_abs_age_bands
+    description: >
+      Decode of the ABS CL_AGE 5-year band codes, verified against the ABS
+      codelist API. min/max ages let exact casualty ages be conformed to the
+      same bands the population data uses.
+    config:
+      column_types:
+        age_band_code: text
+        age_band: text
+        min_age: int
+        max_age: int
+        sort_order: int
+    columns:
+      - name: age_band_code
+        tests: [unique, not_null]
+
+  - name: seed_lga_name_overrides
+    description: >
+      Manual name-to-code mappings for crash LGA names the normalisation rules
+      cannot resolve: renamed councils, spelling differences and unincorporated
+      areas. Each row records WHY it exists.
+    config:
+      column_types:
+        source_lga_name: text
+        lga_code: text   # must match the codelist's text type or joins/COALESCE break
+        note: text
+    columns:
+      - name: source_lga_name
+        tests: [unique, not_null]
+      - name: lga_code
+        tests: [not_null]

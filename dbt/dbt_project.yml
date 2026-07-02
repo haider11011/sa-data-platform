@@ -35,4 +35,4 @@ seeds:
 
 snapshots:
   sa_data_platform:
-    +target_schema: snapshots
+    +schema: snapshots

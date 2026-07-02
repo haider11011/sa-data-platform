@@ -66,20 +66,3 @@ models:
         tests: [unique, not_null]
       - name: lga_name
         tests: [unique, not_null]
-
-seeds:
-  - name: seed_abs_age_bands
-    description: >
-      Decode of the ABS CL_AGE 5-year band codes, verified against the ABS
-      codelist API. min/max ages let exact casualty ages be conformed to the
-      same bands the population data uses.
-    config:
-      column_types:
-        age_band_code: text
-        age_band: text
-        min_age: int
-        max_age: int
-        sort_order: int
-    columns:
-      - name: age_band_code
-        tests: [unique, not_null]

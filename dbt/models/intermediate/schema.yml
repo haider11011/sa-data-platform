@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: int_lga_name_conformed
+    description: >
+      Bridge resolving every distinct crash LGA name to an ABS LGA code, via a
+      normalisation rule chain plus seed overrides. This model failing its
+      lga_code not_null test is the designed alarm for new/changed source
+      names — fact rows are never silently dropped.
+    columns:
+      - name: source_lga_name
+        tests: [unique, not_null]
+      - name: lga_code
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_abs__lga_codelist')
+              field: lga_code

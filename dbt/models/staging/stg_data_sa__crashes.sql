@@ -18,11 +18,13 @@ renamed as (
         -- between warehouse builds ingested from different extracts.
         regexp_replace("REPORT_ID", '-\d{1,2}/\d{1,2}/\d{4}$', '')  as report_id,
 
-        -- geography (free-text from the source; conformed to ABS codes downstream)
-        "Stats Area"                                                as stats_area,
-        initcap("Suburb")                                           as suburb,
-        "Postcode"                                                  as postcode,
-        "LGA Name"                                                  as lga_name,
+        -- geography (free-text from the source; conformed to ABS codes downstream).
+        -- The extract space-pads text to fixed width, so trim everything and
+        -- turn all-blank values into honest NULLs.
+        nullif(trim("Stats Area"), '')                              as stats_area,
+        nullif(initcap(trim("Suburb")), '')                         as suburb,
+        nullif(trim("Postcode"), '')                                as postcode,
+        nullif(trim("LGA Name"), '')                                as lga_name,
 
         -- outcome measures
         "Total Units"::int                                          as total_units,
