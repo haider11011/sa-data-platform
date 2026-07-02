@@ -46,12 +46,29 @@ def connect():
 
 
 def recreate_table(cur, table: str, columns: list[str]) -> None:
-    """(Re)create raw.<table> with all-TEXT columns plus audit columns.
+    """Prepare an empty raw.<table> with all-TEXT columns plus audit columns.
 
-    DROP + CREATE rather than TRUNCATE so a schema change upstream (new/renamed
-    column) is absorbed automatically on the next run.
+    If the table already exists with the expected columns it is TRUNCATEd in
+    place, which preserves the dbt staging views that select from it. Only a
+    genuine upstream schema change (new/renamed columns) forces DROP CASCADE —
+    that also drops dependent views, which is fine: the pipeline always runs
+    dbt after ingestion, and dbt recreates them.
     """
-    cur.execute(sql.SQL("DROP TABLE IF EXISTS raw.{}").format(sql.Identifier(table)))
+    expected = columns + ["_source_resource", "_ingested_at"]
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = 'raw' AND table_name = %s",
+        (table,),
+    )
+    existing = [row[0] for row in cur.fetchall()]
+
+    if sorted(existing) == sorted(expected):
+        cur.execute(sql.SQL("TRUNCATE raw.{}").format(sql.Identifier(table)))
+        return
+
+    if existing:
+        log.warning("Schema change detected for raw.%s — rebuilding table and dependents", table)
+    cur.execute(sql.SQL("DROP TABLE IF EXISTS raw.{} CASCADE").format(sql.Identifier(table)))
     cols = sql.SQL(", ").join(sql.SQL("{} text").format(sql.Identifier(c)) for c in columns)
     cur.execute(
         sql.SQL(
@@ -153,7 +170,11 @@ def main() -> None:
         "--limit",
         type=int,
         default=None,
-        help="Max rows per resource (CI uses this to keep runs fast; omit for full loads)",
+        help=(
+            "Dev-only: cap rows per entity for a quick smoke run. Truncates each "
+            "entity independently, so casualty/unit rows may reference crashes "
+            "beyond the cap and relationship tests will fail — never use for real loads."
+        ),
     )
     args = parser.parse_args()
 
