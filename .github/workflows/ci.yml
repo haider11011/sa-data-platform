@@ -1,0 +1,63 @@
+# CI: rebuild the entire warehouse from the real public APIs on every push.
+#
+# A throwaway Postgres service container stands in for the local warehouse;
+# ingestion pulls live data (no fixtures — the pipeline's contract with the
+# real sources IS what's being tested), then `dbt build` runs every seed,
+# snapshot, model and test in dependency order. Any failed test fails the push.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      warehouse:
+        image: postgres:16
+        env:
+          POSTGRES_USER: warehouse
+          POSTGRES_PASSWORD: warehouse
+          POSTGRES_DB: sa_warehouse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U warehouse -d sa_warehouse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      WAREHOUSE_POSTGRES_HOST: localhost
+      WAREHOUSE_POSTGRES_PORT: "5432"
+      WAREHOUSE_POSTGRES_DB: sa_warehouse
+      WAREHOUSE_POSTGRES_USER: warehouse
+      WAREHOUSE_POSTGRES_PASSWORD: warehouse
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create raw schema
+        run: psql -h localhost -U warehouse -d sa_warehouse -c "CREATE SCHEMA IF NOT EXISTS raw"
+        env:
+          PGPASSWORD: warehouse
+
+      - name: Ingest raw data (live APIs)
+        run: python -m ingestion.load_raw --source all
+
+      - name: dbt deps
+        run: dbt deps --profiles-dir dbt --project-dir dbt
+
+      - name: dbt build (seeds, snapshots, models, tests)
+        run: dbt build --profiles-dir dbt --project-dir dbt
