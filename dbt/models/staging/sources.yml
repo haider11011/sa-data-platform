@@ -1,0 +1,32 @@
+version: 2
+
+sources:
+  - name: data_sa
+    description: >
+      SA road crash data from Data.SA (data.sa.gov.au, CKAN). Landed by
+      ingestion/load_raw.py from the latest rolling 5-year extract archive —
+      all three entity tables come from ONE extract because REPORT_IDs are
+      renumbered on every extract and only join within one.
+    database: "{{ env_var('WAREHOUSE_POSTGRES_DB', 'sa_warehouse') }}"
+    schema: raw
+    tables:
+      - name: data_sa_crashes
+        description: One row per reported crash, 2020-2024. All columns text (bronze).
+      - name: data_sa_casualties
+        description: One row per person injured in a crash. All columns text (bronze).
+      - name: data_sa_units
+        description: One row per unit (vehicle/pedestrian/cyclist) involved in a crash. All columns text (bronze).
+
+  - name: abs
+    description: >
+      Australian Bureau of Statistics Data API (SDMX). Estimated Resident
+      Population by LGA plus the LGA codelist used to conform region names.
+    database: "{{ env_var('WAREHOUSE_POSTGRES_DB', 'sa_warehouse') }}"
+    schema: raw
+    tables:
+      - name: abs_erp_lga
+        description: >
+          ERP observations, all Australian LGAs, annual 2015+, by sex and age
+          band (dataflow ABS_ANNUAL_ERP_LGA2024). All columns text (bronze).
+      - name: abs_lga_codelist
+        description: LGA_2024 codelist — ABS LGA code to official name, all states.

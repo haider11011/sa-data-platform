@@ -1,0 +1,38 @@
+# SA Regional Data Platform — dbt project.
+#
+# Medallion layout:
+#   bronze  = raw schema, loaded by ingestion scripts (dbt sources, never models)
+#   silver  = staging schema: cleaning, typing, renaming only — no business logic
+#   gold    = marts schema: the star schema BI tools connect to
+name: sa_data_platform
+version: "1.0.0"
+profile: sa_data_platform
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  sa_data_platform:
+    staging:
+      +schema: staging
+      +materialized: view   # views: always fresh, zero storage; volumes are tiny
+    intermediate:
+      +schema: staging      # helper models live with staging — not for BI consumption
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table  # tables: BI tools hit these directly, so pay storage for speed
+
+seeds:
+  sa_data_platform:
+    +schema: staging
+
+snapshots:
+  sa_data_platform:
+    +target_schema: snapshots

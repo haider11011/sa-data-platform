@@ -1,0 +1,85 @@
+version: 2
+
+models:
+  - name: stg_data_sa__crashes
+    description: >
+      One row per reported crash in SA, 2020-2024, typed and renamed from the
+      bronze table. REPORT_ID is normalised to its stable year-sequence form.
+    columns:
+      - name: report_id
+        description: Stable crash identifier (year-sequence, extract-date suffix stripped).
+        tests: [unique, not_null]
+      - name: crash_date
+        tests: [not_null]
+      - name: severity_code
+        description: CSEF severity, 1 (property damage only) to 4 (fatal).
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4]
+              quote: false
+
+  - name: stg_data_sa__casualties
+    description: One row per person injured in a crash (same extract as crashes).
+    columns:
+      - name: report_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_data_sa__crashes')
+              field: report_id
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [report_id, unit_number, casualty_number]
+
+  - name: stg_data_sa__units
+    description: One row per unit (vehicle/pedestrian/cyclist) involved in a crash.
+    columns:
+      - name: report_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_data_sa__crashes')
+              field: report_id
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [report_id, unit_number]
+
+  - name: stg_abs__erp_lga
+    description: ABS Estimated Resident Population, SA LGAs only, annual 2015+.
+    columns:
+      - name: population
+        tests: [not_null]
+      - name: sex
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Male, Female, Persons]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [lga_code, year, sex, age_band_code]
+
+  - name: stg_abs__lga_codelist
+    description: ABS LGA_2024 codelist filtered to SA — authoritative code/name pairs.
+    columns:
+      - name: lga_code
+        tests: [unique, not_null]
+      - name: lga_name
+        tests: [unique, not_null]
+
+seeds:
+  - name: seed_abs_age_bands
+    description: >
+      Decode of the ABS CL_AGE 5-year band codes, verified against the ABS
+      codelist API. min/max ages let exact casualty ages be conformed to the
+      same bands the population data uses.
+    config:
+      column_types:
+        age_band_code: text
+        age_band: text
+        min_age: int
+        max_age: int
+        sort_order: int
+    columns:
+      - name: age_band_code
+        tests: [unique, not_null]

@@ -1,0 +1,16 @@
+# Committed on purpose: connection details are env-var driven with local-dev
+# defaults that match .env.example, so `dbt build` works out of the box on the
+# host (localhost:5433), inside Airflow (warehouse-db:5432) and in CI — same
+# profile, different environment variables. No secrets live here.
+sa_data_platform:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('WAREHOUSE_POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('WAREHOUSE_POSTGRES_PORT', '5433') | as_number }}"
+      user: "{{ env_var('WAREHOUSE_POSTGRES_USER', 'warehouse') }}"
+      password: "{{ env_var('WAREHOUSE_POSTGRES_PASSWORD', 'warehouse') }}"
+      dbname: "{{ env_var('WAREHOUSE_POSTGRES_DB', 'sa_warehouse') }}"
+      schema: public   # never used directly — every layer sets its own schema
+      threads: 4
