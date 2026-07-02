@@ -1,0 +1,5 @@
+# Host-side dependencies: ingestion scripts + dbt.
+# (Inside Airflow the same tools are installed via airflow/Dockerfile.)
+requests==2.32.3
+psycopg2-binary==2.9.10
+dbt-postgres==1.9.0
