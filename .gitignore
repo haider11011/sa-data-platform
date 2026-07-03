@@ -8,6 +8,7 @@ __pycache__/
 venv/
 
 # dbt artifacts
+dbt/.user.yml
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
